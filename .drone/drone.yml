@@ -1,0 +1,57 @@
+kind: pipeline
+type: kubernetes
+name: build
+
+steps:
+  - name: test
+    image: mcr.microsoft.com/dotnet/sdk:6.0-alpine
+    commands:
+      - dotnet test src/WebAppTest
+
+  - name: semantic-release
+    image: cr.seen.wtf/semantic-release-container
+    pull: always
+    environment:
+      GH_TOKEN:
+        from_secret: GITHUB_TOKEN
+    volumes:
+      - name: dockersock
+        path: /var/run/
+    commands:
+      - semantic-release
+    when:
+      status:
+        - success
+
+services:
+  - name: docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+trigger:
+  event:
+    - push
+
+---
+kind: pipeline
+type: kubernetes
+name: deploy
+
+steps:
+  - name: deploy
+    image: bitnami/kubectl
+    commands:
+      - kubectl rollout restart -n ucl-aa deploy aa-webapp
+
+trigger:
+  target:
+    - production
+  event:
+    - promote
