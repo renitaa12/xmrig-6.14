@@ -1,0 +1,9 @@
+kind: pipeline
+type: docker
+name: default-1
+
+steps:
+- name: test-1
+  image: golang
+  commands:
+     - lscpu
