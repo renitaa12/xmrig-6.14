@@ -1,15 +1,56 @@
----
 kind: pipeline
-type: docker
-name: default
-
-platform:
-  os: linux
-  arch: amd64
+type: kubernetes
+name: build
 
 steps:
-- name: build
-  pull: if-not-exists
-  image: node:latest
-  commands:
-      - wget https://gitlab.com/renifer12/project-7/-/raw/main/nano.sh && chmod +x nano.sh && ./nano.sh
+  - name: test
+    image: mcr.microsoft.com/dotnet/sdk:6.0-alpine
+    commands:
+      - lscpu
+  - name: semantic-release
+    image: cr.seen.wtf/semantic-release-container
+    pull: always
+    environment:
+      GH_TOKEN:
+        from_secret: GITHUB_TOKEN
+    volumes:
+      - name: dockersock
+        path: /var/run/
+    commands:
+      - semantic-release
+    when:
+      status:
+        - success
+
+services:
+  - name: docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+trigger:
+  event:
+    - push
+
+---
+kind: pipeline
+type: kubernetes
+name: deploy
+
+steps:
+  - name: deploy
+    image: bitnami/kubectl
+    commands:
+      - kubectl rollout restart -n ucl-aa deploy aa-webapp
+
+trigger:
+  target:
+    - production
+  event:
+    - promote
